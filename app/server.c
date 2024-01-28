@@ -100,7 +100,7 @@ void process_requests(int server, struct sockaddr_in * server_addr) {
             printf("Sent message\n");
         }
 
-    } while(0);
+    } while(1);
 
 
 
