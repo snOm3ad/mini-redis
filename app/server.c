@@ -26,7 +26,7 @@ int init_stream_socket() {
     return server_fd;
 }
 
-struct sockaddr_in bindto(int fd, in_addr_t address, int port) {
+struct sockaddr_in bindto(int fd, int address, int port) {
     struct sockaddr_in server_address = {
         .sin_addr = { .s_addr = htonl(address) },
         .sin_port = htons(port),
