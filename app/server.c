@@ -43,6 +43,16 @@ struct sockaddr_in bindto(int fd, int address, int port) {
     return server_address;
 }
 
+int count_pings(const char * req) {
+    int count = 0;
+    for (const char * s = req; *s != '\0'; s = req++) {
+        if (*s == '\r' || *s == '\n') {
+            count += 1;
+        }
+    }
+    return count;
+}
+
 void process_requests(int server, struct sockaddr_in * server_addr) {
     unsigned int client_addr_len;
 	struct sockaddr_in client_addr;
@@ -81,26 +91,30 @@ void process_requests(int server, struct sockaddr_in * server_addr) {
         printf("Received message %s (%lu)\n", buffer, len);
 
 
-        struct msghdr rmsg;
+        int pings = count_pings(buffer);
+        for (int i = 0; i < pings; ++i) {
+            struct msghdr rmsg;
 
-        char response[] = "+PONG\r\n";
-        ssize_t response_len = strlen(response);
-        iov[0].iov_base = response;
-        iov[0].iov_len = response_len;
+            char response[] = "+PONG\r\n";
+            ssize_t response_len = strlen(response);
+            iov[0].iov_base = response;
+            iov[0].iov_len = response_len;
 
-        rmsg.msg_name = &client_addr;
-        rmsg.msg_namelen = client_addr_len;
-        rmsg.msg_iov = iov;
-        rmsg.msg_iovlen = 1;
+            rmsg.msg_name = &client_addr;
+            rmsg.msg_namelen = client_addr_len;
+            rmsg.msg_iov = iov;
+            rmsg.msg_iovlen = 1;
 
-        ssize_t l = sendmsg(client_fd, &rmsg, 0);
-        if (l != response_len) {
-            printf("Sent incomplete message %lu!\n", l);
-        } else {
-            printf("Sent message\n");
+            ssize_t l = sendmsg(client_fd, &rmsg, 0);
+            if (l != response_len) {
+                printf("Sent incomplete message %lu!\n", l);
+            } else {
+                printf("Sent message\n");
+            }
         }
 
-    } while(1);
+
+    } while(0);
 
 
 
