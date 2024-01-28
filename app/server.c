@@ -62,8 +62,8 @@ void process_requests(int server, struct sockaddr_in * server_addr) {
 	printf("Connecting to client...\n");
 	client_addr_len = sizeof(client_addr);
 	
+    int client_fd = accept(server, (struct sockaddr *) &client_addr, &client_addr_len);
     do {
-	    int client_fd = accept(server, (struct sockaddr *) &client_addr, &client_addr_len);
         //printf("Client connected\n");
         
         //void            *msg_name;      /* [XSI] optional address */
@@ -89,6 +89,9 @@ void process_requests(int server, struct sockaddr_in * server_addr) {
 
         ssize_t len = recvmsg(client_fd, &imsg, 0);
         buffer[len] = '\0';
+        if (len == 0) {
+            break;
+        }
 
         printf("Received message %s (%lu)\n", buffer, len);
 
@@ -116,7 +119,7 @@ void process_requests(int server, struct sockaddr_in * server_addr) {
         }
 
 
-    } while(0);
+    } while(1);
 
 
 
