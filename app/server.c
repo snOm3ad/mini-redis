@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/_types/_in_addr_t.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -7,54 +8,116 @@
 #include <errno.h>
 #include <unistd.h>
 
+#define ERR_MSG(x) do { \
+    fprintf(stderr, "[ERROR]: %s\n", x); } \
+    while(0)
+
+int init_stream_socket() {
+	int server_fd;
+	server_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    if (server_fd < 0) {
+        ERR_MSG(strerror(errno));
+    }
+
+    int reuse = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse));
+
+    return server_fd;
+}
+
+struct sockaddr_in bindto(int fd, in_addr_t address, int port) {
+    struct sockaddr_in server_address = {
+        .sin_addr = { .s_addr = htonl(address) },
+        .sin_port = htons(port),
+        .sin_family = AF_INET,
+    };
+
+    // when a socket is created with `socket(2)` it exists in a name space
+    // but has no name assigned.
+    //
+    // `bind` requests that the address is assigned to a socket.
+    if (bind(fd, (struct sockaddr *) &server_address, sizeof(server_address)) != 0) {
+        ERR_MSG(strerror(errno));
+    }
+
+    return server_address;
+}
+
+void process_requests(int server, struct sockaddr_in * server_addr) {
+    unsigned int client_addr_len;
+	struct sockaddr_in client_addr;
+
+	printf("Connecting to client...\n");
+	client_addr_len = sizeof(client_addr);
+	
+    do {
+	    int client_fd = accept(server, (struct sockaddr *) &client_addr, &client_addr_len);
+        //printf("Client connected\n");
+        
+        //void            *msg_name;      /* [XSI] optional address */
+        //socklen_t       msg_namelen;    /* [XSI] size of address */
+        //struct          iovec *msg_iov; /* [XSI] scatter/gather array */
+        //int             msg_iovlen;     /* [XSI] # elements in msg_iov */
+        //void            *msg_control;   /* [XSI] ancillary data, see below */
+        //socklen_t       msg_controllen; /* [XSI] ancillary data buffer len */
+        //int             msg_flags;      /* [XSI] flags on received message */
+        struct msghdr imsg;
+
+        struct iovec iov[1];
+
+        char buffer[1024];
+        iov[0].iov_base = buffer;
+        iov[0].iov_len = 1024;
+
+        imsg.msg_name = &client_addr;
+        imsg.msg_namelen = client_addr_len;
+        imsg.msg_iov = iov;
+        imsg.msg_iovlen = 1;
+
+
+        ssize_t len = recvmsg(client_fd, &imsg, 0);
+        buffer[len] = '\0';
+
+        printf("Received message %s (%lu)\n", buffer, len);
+
+
+        struct msghdr rmsg;
+
+        char * response = "+PONG\r\n";
+        iov[0].iov_base = response;
+        iov[0].iov_len = strlen(response);
+
+        rmsg.msg_name = &client_addr;
+        rmsg.msg_namelen = client_addr_len;
+        rmsg.msg_iov = iov;
+        rmsg.msg_iovlen = 1;
+
+        ssize_t l = sendmsg(client_fd, &rmsg, 0);
+        printf("Sent message\n");
+
+    } while(0);
+
+
+
+}
+
 int main() {
 	// Disable output buffering
 	setbuf(stdout, NULL);
 
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	printf("Logs from your program will appear here!\n");
+    // create socket
+    int server_fd = init_stream_socket();
+    struct sockaddr_in server_addr = bindto(server_fd, INADDR_ANY, 6379);
 
-	// Uncomment this block to pass the first stage
-	//
-	int server_fd;
-    unsigned int client_addr_len;
-	struct sockaddr_in client_addr;
-	//
-	server_fd = socket(AF_INET, SOCK_STREAM, 0);
-	if (server_fd == -1) {
-	 	printf("Socket creation failed: %s...\n", strerror(errno));
-	 	return 1;
-	}
-	//
-	// Since the tester restarts your program quite often, setting REUSE_PORT
-	// ensures that we don't run into 'Address already in use' errors
-	int reuse = 1;
-	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse)) < 0) {
-		printf("SO_REUSEPORT failed: %s \n", strerror(errno));
-		return 1;
-	}
 	
-	struct sockaddr_in serv_addr = { .sin_family = AF_INET ,
-									 .sin_port = htons(6379),
-									 .sin_addr = { htonl(INADDR_ANY) },
-									};
-	
-	if (bind(server_fd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) != 0) {
-		printf("Bind failed: %s \n", strerror(errno));
-		return 1;
-	}
-	
-	int connection_backlog = 5;
+	int connection_backlog = 1;
 	if (listen(server_fd, connection_backlog) != 0) {
 		printf("Listen failed: %s \n", strerror(errno));
 		return 1;
-	}
-	
-	printf("Waiting for a client to connect...\n");
-	client_addr_len = sizeof(client_addr);
-	
-	accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
-	printf("Client connected\n");
+	}	
+
+    process_requests(server_fd, &server_addr);
 	
 	close(server_fd);
 
