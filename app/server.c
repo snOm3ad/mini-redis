@@ -46,8 +46,10 @@ struct sockaddr_in bindto(int fd, int address, int port) {
 int count_pings(const char * req) {
     int count = 0;
     for (const char * s = req; *s != '\0'; s = req++) {
-        if (*s == '\r' || *s == '\n') {
-            count += 1;
+        if (s[0] == 'p') {
+            if (s[1] == 'i' && s[2] == 'n' && s[3] == 'g') {
+                count += 1;
+            }
         }
     }
     return count;
