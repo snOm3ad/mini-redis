@@ -83,9 +83,10 @@ void process_requests(int server, struct sockaddr_in * server_addr) {
 
         struct msghdr rmsg;
 
-        char * response = "+PONG\r\n";
+        char * response = "+PONG\\r\\n";
+        ssize_t response_len = strlen(response);
         iov[0].iov_base = response;
-        iov[0].iov_len = strlen(response);
+        iov[0].iov_len = response_len;
 
         rmsg.msg_name = &client_addr;
         rmsg.msg_namelen = client_addr_len;
@@ -93,7 +94,11 @@ void process_requests(int server, struct sockaddr_in * server_addr) {
         rmsg.msg_iovlen = 1;
 
         ssize_t l = sendmsg(client_fd, &rmsg, 0);
-        printf("Sent message\n");
+        if (l != response_len) {
+            printf("Sent incomplete message!\n");
+        } else {
+            printf("Sent message\n");
+        }
 
     } while(0);
 
