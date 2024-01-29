@@ -63,61 +63,71 @@ void process_requests(int server, struct sockaddr_in * server_addr) {
 	client_addr_len = sizeof(client_addr);
 	
     ssize_t request_length = 0;
+    char buffer[1024];
+    int client_fd = accept(server, (struct sockaddr *) &client_addr, &client_addr_len);
 
-    while (1) {
-        int client_fd = accept(server, (struct sockaddr *) &client_addr, &client_addr_len);
-        printf("Client connected\n");
+    while (client_fd > 0) {
+        recv(client_fd, buffer, sizeof(buffer), 0);
+        char pong[] = "+PONG\r\n";
 
-        struct msghdr imsg;
-        struct iovec iov[1];
+        // send client pong
+        send(client_fd, pong, strlen(pong), 0);
+    }
 
-        char buffer[1024];
-        iov[0].iov_base = buffer;
-        iov[0].iov_len = 1024;
+    //while (1) {
+    //    int client_fd = accept(server, (struct sockaddr *) &client_addr, &client_addr_len);
+    //    printf("Client connected\n");
 
-        imsg.msg_name = server_addr;
-        imsg.msg_namelen = sizeof(*server_addr);
-        imsg.msg_iov = iov;
-        imsg.msg_iovlen = 1;
-        
-        //void            *msg_name;      /* [XSI] optional address */
-        //socklen_t       msg_namelen;    /* [XSI] size of address */
-        //struct          iovec *msg_iov; /* [XSI] scatter/gather array */
-        //int             msg_iovlen;     /* [XSI] # elements in msg_iov */
-        //void            *msg_control;   /* [XSI] ancillary data, see below */
-        //socklen_t       msg_controllen; /* [XSI] ancillary data buffer len */
-        //int             msg_flags;      /* [XSI] flags on received message */
-        request_length = recvmsg(client_fd, &imsg, 0);
-        if (request_length == 0) {
-            close(client_fd);
-            break;
-        }
-        buffer[request_length] = '\0';
+    //    struct msghdr imsg;
+    //    struct iovec iov[1];
 
-        printf("Received message %s (%lu)\n", buffer, request_length);
+    //    char buffer[1024];
+    //    iov[0].iov_base = buffer;
+    //    iov[0].iov_len = 1024;
+
+    //    imsg.msg_name = server_addr;
+    //    imsg.msg_namelen = sizeof(*server_addr);
+    //    imsg.msg_iov = iov;
+    //    imsg.msg_iovlen = 1;
+    //    
+    //    //void            *msg_name;      /* [XSI] optional address */
+    //    //socklen_t       msg_namelen;    /* [XSI] size of address */
+    //    //struct          iovec *msg_iov; /* [XSI] scatter/gather array */
+    //    //int             msg_iovlen;     /* [XSI] # elements in msg_iov */
+    //    //void            *msg_control;   /* [XSI] ancillary data, see below */
+    //    //socklen_t       msg_controllen; /* [XSI] ancillary data buffer len */
+    //    //int             msg_flags;      /* [XSI] flags on received message */
+    //    request_length = recvmsg(client_fd, &imsg, 0);
+    //    if (request_length == 0) {
+    //        close(client_fd);
+    //        break;
+    //    }
+    //    buffer[request_length] = '\0';
+
+    //    printf("Received message %s (%lu)\n", buffer, request_length);
 
 
-        struct msghdr rmsg;
+    //    struct msghdr rmsg;
 
-        char response[] = "+PONG\r\n";
-        ssize_t response_len = strlen(response);
-        iov[0].iov_base = response;
-        iov[0].iov_len = response_len;
+    //    char response[] = "+PONG\r\n";
+    //    ssize_t response_len = strlen(response);
+    //    iov[0].iov_base = response;
+    //    iov[0].iov_len = response_len;
 
-        rmsg.msg_name = &client_addr;
-        rmsg.msg_namelen = client_addr_len;
-        rmsg.msg_iov = iov;
-        rmsg.msg_iovlen = 1;
+    //    rmsg.msg_name = &client_addr;
+    //    rmsg.msg_namelen = client_addr_len;
+    //    rmsg.msg_iov = iov;
+    //    rmsg.msg_iovlen = 1;
 
-        ssize_t l = sendmsg(client_fd, &rmsg, 0);
-        if (l != response_len) {
-            printf("Sent incomplete message %lu!\n", l);
-        } else {
-            printf("Sent message\n");
-        }
+    //    ssize_t l = sendmsg(client_fd, &rmsg, 0);
+    //    if (l != response_len) {
+    //        printf("Sent incomplete message %lu!\n", l);
+    //    } else {
+    //        printf("Sent message\n");
+    //    }
 
-        close(client_fd);
-    };
+    //    close(client_fd);
+    //};
 
 
 
