@@ -75,8 +75,8 @@ void process_requests(int server, struct sockaddr_in * server_addr) {
         iov[0].iov_base = buffer;
         iov[0].iov_len = 1024;
 
-        imsg.msg_name = &client_addr;
-        imsg.msg_namelen = client_addr_len;
+        imsg.msg_name = server_addr;
+        imsg.msg_namelen = sizeof(*server_addr);
         imsg.msg_iov = iov;
         imsg.msg_iovlen = 1;
         
@@ -87,8 +87,12 @@ void process_requests(int server, struct sockaddr_in * server_addr) {
         //void            *msg_control;   /* [XSI] ancillary data, see below */
         //socklen_t       msg_controllen; /* [XSI] ancillary data buffer len */
         //int             msg_flags;      /* [XSI] flags on received message */
-        buffer[request_length] = '\0';
         request_length = recvmsg(client_fd, &imsg, 0);
+        if (request_length == 0) {
+            close(client_fd);
+            break;
+        }
+        buffer[request_length] = '\0';
 
         printf("Received message %s (%lu)\n", buffer, request_length);
 
@@ -112,7 +116,7 @@ void process_requests(int server, struct sockaddr_in * server_addr) {
             printf("Sent message\n");
         }
 
-        close(client_fd);
+        //close(client_fd);
     };
 
 
