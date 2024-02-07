@@ -68,6 +68,7 @@ struct sockaddr_in bindto(int fd, int address, int port) {
 struct node {
     int fd;
     struct sockaddr_in addr;
+    void *ptr;
 } ctbl[MAX_CLIENTS];
 
 ssize_t write_msg(struct node * self, int client) {
@@ -210,6 +211,7 @@ void process_requests(struct node * self) {
                         ctbl[cid] = (struct node) {
                             .fd = client_fd,
                             .addr = client_addr,
+                            .ptr = NULL,
                         };
                         LOG("after ctbl[%i]: %i", cid, ctbl[cid].fd);
                         // increment the number of registered clients
@@ -285,7 +287,6 @@ void process_requests(struct node * self) {
                     //       messages group the responses together and answer
                     //       all queries at once.
                     len = read_msg(&ctbl[csid]);
-                    write_msg(self, ctbl[csid].fd);
 
                     if (len <= 0) {
                         LOG("csid: %i has disconnected!", csid);
@@ -298,6 +299,9 @@ void process_requests(struct node * self) {
                         serving -= 1;
                         memset(&ctbl[csid], 0, sizeof(struct node));
                         break;
+                    }
+                    else {
+                        write_msg(self, ctbl[csid].fd);
                     }
                 }
             }
