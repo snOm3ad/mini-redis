@@ -236,9 +236,9 @@ void process_requests(struct node * self) {
             // remain in the queue which will lead to an error during read.
             if (ctbl[cid].fd != 0 && cedid < serving) {
 
-                // because `cestbl` and `ctbl` are likely _not_ the same size
+                // because `cedtbl` and `ctbl` are likely _not_ the same size
                 // then we cannot simply store the slot index. we _also_ have to
-                // store the `rac_id` which we use to access it's kqueue event data.
+                // store the `cedid` which we use to access it's kqueue event data.
                 //
                 // we jam both these ids inside the slot for this client and pass it
                 // as user data when we register our client.
@@ -304,7 +304,115 @@ void process_requests(struct node * self) {
         }
     }
 #elif defined(__linux__)
+    int epfd;
+    int timeout;
 
+    if ((epfd = epoll_create1(0)) < 0) {
+        ERR_MSG("Could not create epoll instance");
+    }
+
+    timeout = (int) (1000 * 5); // 5s
+    struct epoll_event ev_conn;
+
+    ev_conn.events = EPOLLIN;
+    ev_conn.data.fd = self->fd;
+
+    if (epoll_ctl(epfd, EPOLL_CTL_ADD, self->fd, &ev_conn) < 0) {
+        ERR_MSG("Could not register server read event in epoll instance");
+        ERR_MSG(strerror(errno));
+    }
+
+    int nev = 0;
+    int serving = 0;
+
+    while (1) {
+        struct epoll_event incoming[MAX_CLIENTS];
+        nev = epoll_wait(epfd, incoming, MAX_CLIENTS, timeout);
+
+        LOG("up -> found %i events\tserving %i", nev, serving);
+
+        for (int i = 0; i < nev; ++i) {
+            if (incoming[i].data.fd == self->fd) {
+                //TODO: do I have to call `epoll_ctl` to remove the read event? maybe.
+                client_fd = accept(self->fd, (struct sockaddr *) &client_addr, &client_addr_len);
+
+                LOG("Client (%i) connected", client_fd);
+
+                // add client to client table
+                for (int cid = 0; cid < MAX_CLIENTS; ++cid) {
+                    LOG("before ctbl[%i]: %i", cid, ctbl[cid].fd);
+                    // find first available slot in client table.
+                    if (ctbl[cid].fd == 0) {
+                        // place the current client in the slot.
+                        ctbl[cid] = (struct node) {
+                            .fd = client_fd,
+                            .addr = client_addr,
+                            .ptr = NULL,
+                        };
+                        LOG("after ctbl[%i]: %i", cid, ctbl[cid].fd);
+                        // increment the number of registered clients
+                        serving += 1;
+                        break;
+                    }
+                }
+            }
+        }
+
+        int client_ids[MAX_CLIENTS];
+        nev = 0;
+
+        for (unsigned char cid = 0; cid < MAX_CLIENTS; ++cid) {
+            if (ctbl[cid].fd != 0 && ctbl[cid].ptr == NULL) {
+                // register new client
+                struct epoll_event ced;
+                client_ids[cid] = cid;
+                LOG("client_ids[%i]: %p", cid, &client_ids[cid]);
+
+                ced.events = EPOLLIN;
+                ced.data.ptr = &client_ids[cid];
+
+                if (epoll_ctl(epfd, EPOLL_CTL_ADD, ctbl[cid].fd, &ced) < 0) {
+                    ERR_MSG("Could not register client read event");
+                    ERR_MSG(strerror(errno));
+                }
+                ctbl[cid].ptr = &client_ids[cid];
+            }
+        }
+        // client event table
+        struct epoll_event cetbl[MAX_CLIENTS];
+        nev = epoll_wait(epfd, cetbl, MAX_CLIENTS, -1);
+        LOG("down -> found %i events\tserving %i", nev, serving);
+
+
+        for (int i = 0; i < nev; ++i) {
+            if (cetbl[i].data.ptr != NULL && cetbl[i].data.fd != self->fd) {
+                int indexes = *((int *)cetbl[i].data.ptr);
+                LOG("udata: %p", cetbl[i].data.ptr);
+                LOG("indexes: 0x%x", indexes);
+
+                unsigned char csid = indexes & 0x00FF;
+                ssize_t len;
+
+                if (cetbl[i].events == EPOLLIN) {
+                    LOG("read ready (csid: %i)", csid);
+                    len = read_msg(&ctbl[csid]);
+                    if (len <= 0) {
+                        LOG("csid: %i has disconnected!", csid);
+                        if (epoll_ctl(epfd, EPOLL_CTL_DEL, ctbl[csid].fd, NULL) < 0) {
+                            ERR_MSG("Could not delete event");
+                            ERR_MSG(strerror(errno));
+                        }
+                        serving -= 1;
+                        memset(&ctbl[csid], 0, sizeof(struct node));
+                        break;
+                    } 
+                    else {
+                        write_msg(self, ctbl[csid].fd);
+                    }
+                }
+            }
+        }
+    }
 #endif
 }
 
